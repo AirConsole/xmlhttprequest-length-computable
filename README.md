@@ -7,10 +7,10 @@ Google Chrome (as of version 64) can not estimate the total download size of XML
 A good example of why this library is needed are Unity WebGL games. They download big data files and show a nice progress bar. This progress bar looks stuck in Google Chrome.
 
 ## How to use this library
-Just download xmlhttprequest-lengthcomputable.min.js and include it in your html page.
+Just download xmlhttprequest-length-computable.min.js and include it in your html page.
 
 ```html
-<script type=text/javascript src="xmlhttprequest-lengthcomputable.min.js"></script>
+<script type=text/javascript src="xmlhttprequest-length-computable.min.js"></script>
 ```
 Now you will always see some estimated progress.
 
