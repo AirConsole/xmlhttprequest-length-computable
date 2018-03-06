@@ -1,0 +1,207 @@
+<html>
+<script type="text/javascript" src="../xmlhttprequest-lengthcomputable.min.js">
+</script>
+<script type="text/javascript">
+
+  function assert(value, error) {
+    if (!value) {
+      throw error;
+    }
+  }
+
+  function createProgressEvent(lengthComputable, loaded, total, headers) {
+    return {
+      type: "progress",
+      lengthComputable: lengthComputable,
+      loaded: loaded,
+      total: total,
+      target: {
+        getResponseHeader: function (name) {
+          return headers[name];
+        }
+      }
+    }
+  }
+
+  function runTests() {
+    var result = document.getElementById("test-result");
+    for (var test in tests) {
+      try {
+        tests[test]();
+        result.innerHTML += "<div style='color:green'>" + test + " PASS</div>";
+      } catch(e) {
+        result.innerHTML += "<div style='color:red'>" + test + " FAILED: " +
+            e + "</div>"
+      }
+    }
+  }
+
+  var tests = {
+    lengthComputable: function() {
+      var req = new XMLHttpRequest();
+      req.onprogress = function(event) {
+        assert(event.lengthComputable == true, "lengthComputable != true: " +
+            event.lengthComputable)
+      }
+      req.onprogress(createProgressEvent(false))
+    },
+    loaded: function() {
+      var req = new XMLHttpRequest();
+      req.onprogress = function(event) {
+        assert(event.loaded == 1, "loaded != 1: " +
+            event.loaded)
+      }
+      req.onprogress(createProgressEvent(true, 1, 1))
+    },
+    totalLengthComputable: function() {
+      var req = new XMLHttpRequest();
+      req.onprogress = function(event) {
+        assert(event.total == 10, "total != 10: " + event.total)
+      }
+      req.onprogress(createProgressEvent(true, 0, 10, {}))
+    },
+    totalRealLength: function() {
+      var req = new XMLHttpRequest();
+      req.onprogress = function(event) {
+        assert(event.total == 12, "total != 12:" + event.total)
+      }
+      req.onprogress(createProgressEvent(
+          false, 0, 0, {"x-decompressed-content-length": 12}))
+    },
+    totalContentLength: function() {
+      var req = new XMLHttpRequest();
+      req.onprogress = function(event) {
+        assert(event.total == 12, "total != 12: " + event.total)
+      }
+      req.onprogress(createProgressEvent(
+          false, 0, 0, {"content-length": 12}))
+    },
+    totalContentLengthGZIP: function() {
+      var req = new XMLHttpRequest();
+      req.onprogress = function(event) {
+        assert(event.total == 18, "total != 18: " + event.total)
+      }
+      req.onprogress(createProgressEvent(
+          false, 0, 0, {"content-length": 12, "content-encoding": "gzip"}))
+    },
+    totalNoContentLength: function() {
+      var req = new XMLHttpRequest();
+      req.onprogress = function(event) {
+        assert(event.total == 102400, "total != 102400: " + event.total)
+      }
+      req.onprogress(createProgressEvent(
+          false, 0, 0, {}))
+    },
+    totalGallopContentLength: function() {
+      var req = new XMLHttpRequest();
+      req.onprogress = function(event) {
+        assert(event.total == 204800, "total != 204800: " + event.total)
+      }
+      req.onprogress(createProgressEvent(
+          false, 102500, 0, {}))
+    },
+    methodAddProgressEventListener: function() {
+      var req = new XMLHttpRequest();
+      var called = false;
+      var failed = false;
+      req.addEventListener("progress", function(event) {
+        called = true;
+        try {
+          assert(event.lengthComputable == true, "");
+        } catch(e) {
+          failed = "lengthComputable != true: " +
+              event.lengthComputable
+        }
+      });
+      var evt = new Event('progress');
+      evt.lengthComputable = false;
+      req.dispatchEvent(evt);
+      assert(called, "addEventListener: progress listener never called")
+      if (failed) {
+        throw failed;
+      }
+    },
+    methodRemoveProgressEventListener: function() {
+      var req = new XMLHttpRequest();
+      var called = false;
+      var callback = function() {
+        called = true;
+      }
+      req.addEventListener("progress", callback);
+      req.removeEventListener("progress", callback)
+      var evt = new Event('progress');
+      evt.lengthComputable = false;
+      req.dispatchEvent(evt);
+      assert(!called, "removeEventListener: progress listener still called")
+    },
+    methodAddEndEventListener: function() {
+      var req = new XMLHttpRequest();
+      var called = false;
+      req.addEventListener("end", function(event) {
+        called = true;
+      });
+      req.dispatchEvent(new Event("end"));
+      assert(called, "addEventListener: end listener never called")
+    },
+    methodRemoveEndEventListener: function() {
+      var req = new XMLHttpRequest();
+      var called = false;
+      var callback = function(event) {
+        called = true;
+      };
+      req.addEventListener("end", callback);
+      req.removeEventListener("end", callback);
+      req.dispatchEvent(new Event("end"));
+      assert(!called, "removeEventListener: end listener still called")
+    },
+    methodOpen: function() {
+      if (document.location.href.indexOf("http://") == -1 &&
+          document.location.href.indexOf("https://") == -1) {
+        assert(false, "This test can only run if this file is " +
+            "hosted on a webserver!")
+        return;
+      }
+      var req = new XMLHttpRequest();
+      var failed = false;
+      req.onload = function(data) {
+        try {
+          assert(req.responseText == "super-test", "")
+        } catch (e) {
+          failed = "open failed: " + req.responseText
+        }
+      }
+      req.open('GET', "test-data.txt", false);
+      req.send();
+      assert(req.readyState == 4, "readyState != 4:" + req.readyState)
+      if (failed) {
+        throw failed;
+      }
+    },
+    noGetResponseHeaders: function() {
+      var req = new XMLHttpRequest();
+      req.onprogress = function(event) {
+        assert(event.total == 15, "total != 15: " + event.total)
+      }
+      req.onprogress(createProgressEvent(
+          false, 0, 15, null))
+    },
+    overrideDefaults: function() {
+      var req = new XMLHttpRequest({
+        "xmlHTTPRequestLengthComputable": {
+          CONTENT_ENCODING_MULTIPLE: 2
+        }
+      });
+      req.onprogress = function(event) {
+        assert(event.total == 24, "total != 24: " + event.total)
+      }
+      req.onprogress(createProgressEvent(
+          false, 0, 0, {"content-length": 12, "content-encoding": "gzip"}))
+    }
+  }
+
+
+</script>
+<body onload="runTests()">
+<div id="test-result"></div>
+</body>
+</html>

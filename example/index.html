@@ -1,0 +1,29 @@
+<html>
+  <script type="text/javascript" src="../xmlhttprequest-lengthcomputable.js"></script>
+  <script type="text/javascript">
+
+    function request() {
+      var progress = document.getElementById("progress");
+
+      var req = new XMLHttpRequest();
+      req.onprogress = function(event) {
+        progress.style.width = (event.loaded / event.total * 100) + "%";
+      }
+      req.addEventListener("progress", function(event) {
+        console.log(event.loaded / event.total * 100 + "%",
+            event.loaded, event.total, event.lengthComputable);
+      })
+
+      req.onload = function() {
+        progress.innerHTML = "Loaded";
+      }
+
+      req.open('GET', "test-data.txt", true);
+      req.send(null);
+    }
+
+  </script>
+  <body onload="request()">
+    <div style="background: grey"><div id="progress" style="display: inline-block; height:20px; background: lime"></div></div>
+  </body>
+</html>
