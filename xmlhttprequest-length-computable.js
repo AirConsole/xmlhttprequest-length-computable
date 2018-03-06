@@ -19,55 +19,62 @@
     var onprogress = function(defaults, callback) {
       var pseudo_total = 0;
       return function(event) {
-        if (event.type == "progress" && event.lengthComputable == false) {
-          var original_event = event;
-          event = new Proxy(event, {
-            get: function(target, name) {
-              if (name == "lengthComputable") {
-                return true;
-              } else if (name == "total") {
-                try {
-                  if (original_event.lengthComputable) {
+        if (event.type == "progress") {
+          if (event.lengthComputable == false) {
+            var original_event = event;
+            event = new Proxy(event, {
+              get: function (target, name) {
+                if (name == "lengthComputable") {
+                  return true;
+                } else if (name == "total") {
+                  try {
+                    if (original_event.lengthComputable) {
+                      return original_event.total - 1;
+                    }
+                    if (defaults["decompressed-content-length"]) {
+                      return Math.max(defaults["decompressed-content-length"],
+                                      original_event.loaded) - 1;
+                    }
+                    var real_length = original_event.target.getResponseHeader(
+                        defaults.DECOMPRESSED_CONTENT_LENGTH_HEADER);
+                    if (real_length != undefined) {
+                      return Math.max(real_length, original_event.loaded) - 1;
+                    }
+                    if (!pseudo_total) {
+                      var content_length =
+                          original_event.target.getResponseHeader(
+                          'content-length');
+                      if (content_length) {
+                        var content_encoding =
+                            original_event.target.getResponseHeader(
+                                'content-encoding');
+                        if (content_encoding &&
+                            content_encoding != "identity") {
+                          pseudo_total = content_length *
+                              defaults.CONTENT_ENCODING_MULTIPLE;
+                        } else {
+                          pseudo_total = content_length;
+                        }
+                      } else {
+                        pseudo_total = defaults.DEFAULT_CONTENT_LENGTH;
+                      }
+                    }
+                  } catch (e) {
                     return original_event.total - 1;
                   }
-                  if (defaults["decompressed-content-length"]) {
-                    return Math.max(defaults["decompressed-content-length"],
-                                    original_event.loaded) - 1;
+                  while (original_event.loaded >= pseudo_total) {
+                    pseudo_total *= 2;
                   }
-                  var real_length = original_event.target.getResponseHeader(
-                      defaults.DECOMPRESSED_CONTENT_LENGTH_HEADER);
-                  if (real_length != undefined) {
-                    return Math.max(real_length, original_event.loaded) - 1;
-                  }
-                  if (!pseudo_total) {
-                    var content_length = original_event.target.getResponseHeader(
-                        'content-length');
-                    if (content_length) {
-                      var content_encoding =
-                          original_event.target.getResponseHeader(
-                              'content-encoding');
-                      if (content_encoding && content_encoding != "identity") {
-                        pseudo_total = content_length *
-                            defaults.CONTENT_ENCODING_MULTIPLE;
-                      } else {
-                        pseudo_total = content_length;
-                      }
-                    } else {
-                      pseudo_total = defaults.DEFAULT_CONTENT_LENGTH;
-                    }
-                  }
-                } catch(e) {
-                  return original_event.total - 1;
+                  return pseudo_total;
+                } else {
+                  return target[name];
                 }
-                while (original_event.loaded >= pseudo_total) {
-                  pseudo_total *= 2;
-                }
-                return pseudo_total;
-              } else {
-                return target[name];
               }
-            }
-          })
+
+            })
+          } else {
+            defaults["lengthComputable"] = true;
+          }
         }
         callback(event);
       };
@@ -154,6 +161,9 @@
       }
       defaults["progress_listeners"] = [];
       xmlhttprequest.addEventListener("load", function(event) {
+        if (defaults["lengthComputable"]) {
+          return;
+        }
         var original_event = event;
         event =  new Proxy(event, {
           get: function (target, name) {
