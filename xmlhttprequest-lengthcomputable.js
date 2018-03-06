@@ -27,8 +27,11 @@
                 return true;
               } else if (name == "total") {
                 try {
-                  if (original_event.lengthComputable && false) {
+                  if (original_event.lengthComputable) {
                     return original_event.total;
+                  }
+                  if (defaults["decompressed-content-length"]) {
+                    return defaults["decompressed-content-length"];
                   }
                   var real_length = original_event.target.getResponseHeader(
                       defaults.DECOMPRESSED_CONTENT_LENGTH_HEADER);
@@ -128,15 +131,23 @@
     window.XMLHttpRequest = function(arg) {
       var result = new Proxy(new OriginalXMLHTTPRequest(arg), proxy);
       if (arg && arg["xmlHTTPRequestLengthComputable"]) {
-        result.xmlHTTPRequestLengthComputable = {};
-        for (var prop in DEFAULTS) {
-          result.xmlHTTPRequestLengthComputable[prop] =
-              arg["xmlHTTPRequestLengthComputable"][prop] ||
-              DEFAULTS[prop];
+        var config = arg["xmlHTTPRequestLengthComputable"];
+        if (config["decompressed-content-length"] !== undefined) {
+          result.xmlHTTPRequestLengthComputable = {
+            "decompressed-content-length":
+                config["decompressed-content-length"]
+          };
+        } else {
+          result.xmlHTTPRequestLengthComputable = {};
+          for (var prop in DEFAULTS) {
+            result.xmlHTTPRequestLengthComputable[prop] =
+                config[prop] || DEFAULTS[prop];
+          }
         }
       } else {
         result.xmlHTTPRequestLengthComputable = DEFAULTS;
       }
+
       result.xmlHTTPRequestLengthComputable["progress_listeners"] = [];
       return result;
     }

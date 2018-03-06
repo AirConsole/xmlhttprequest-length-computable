@@ -60,7 +60,19 @@
       }
       req.onprogress(createProgressEvent(true, 0, 10, {}))
     },
-    totalRealLength: function() {
+    totalRealConstructorLength: function() {
+      var req = new XMLHttpRequest({
+         "xmlHTTPRequestLengthComputable": {
+           "decompressed-content-length": 6
+         }
+      });
+      req.onprogress = function(event) {
+        assert(event.total == 6, "total != 6:" + event.total)
+      }
+      req.onprogress(createProgressEvent(
+          false, 0, 0, {}))
+    },
+    totalRealHeaderLength: function() {
       var req = new XMLHttpRequest();
       req.onprogress = function(event) {
         assert(event.total == 12, "total != 12:" + event.total)
