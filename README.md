@@ -1,3 +1,5 @@
+# NOT YET PRODUCTION READY!
+
 # XMLHttpRequest-Length-Computable
 A javascript shim that always has an estimated computable length for XMLHTTPRequests in onProgress functions.
 
