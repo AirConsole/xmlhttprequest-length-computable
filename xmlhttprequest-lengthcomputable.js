@@ -88,15 +88,16 @@
             if (arguments[0] == "progress") {
               var event_listener = onprogress(
                   target.xmlHTTPRequestLengthComputable, arguments[1]);
-              target[name].call(
-                  target, arguments[0],
-                  event_listener,
-                  arguments[2], arguments[3]);
               target.xmlHTTPRequestLengthComputable.progress_listeners.push(
                   [event_listener, arguments[1]]
               );
+              return target[name].call(
+                  target, arguments[0],
+                  event_listener,
+                  arguments[2], arguments[3]);
+
             } else {
-              target[name].apply(target, arguments);
+              return target[name].apply(target, arguments);
             }
           }
         } else if (name == "removeEventListener") {
@@ -106,21 +107,21 @@
                   target.xmlHTTPRequestLengthComputable.progress_listeners;
               for (var i = 0; i < listeners.length; ++i) {
                 if (listeners[i][1] == arguments[1]) {
-                  target[name].call(target, arguments[0],
-                                    listeners[i][0],
-                                    arguments[2],
-                                    arguments[3]);
-                  listeners.splice(i);
-                  break;
+                  var listener = listeners.splice(i)[0];
+                  return target[name].call(target, arguments[0],
+                                           listener[0],
+                                           arguments[2],
+                                           arguments[3]);
+
                 }
               }
             } else {
-              target[name].apply(target, arguments);
+              return target[name].apply(target, arguments);
             }
           }
         } else if (typeof target[name] == "function") {
           return function() {
-            target[name].apply(target, arguments);
+            return target[name].apply(target, arguments);
           }
         } else {
           return target[name];
