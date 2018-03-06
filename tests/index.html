@@ -67,7 +67,7 @@
          }
       });
       req.onprogress = function(event) {
-        assert(event.total == 6, "total != 6:" + event.total)
+        assert(event.total == 5, "total != 5:" + event.total)
       }
       req.onprogress(createProgressEvent(
           false, 0, 0, {}))
@@ -75,7 +75,7 @@
     totalRealHeaderLength: function() {
       var req = new XMLHttpRequest();
       req.onprogress = function(event) {
-        assert(event.total == 12, "total != 12:" + event.total)
+        assert(event.total == 11, "total != 11:" + event.total)
       }
       req.onprogress(createProgressEvent(
           false, 0, 0, {"x-decompressed-content-length": 12}))
@@ -166,6 +166,29 @@
       req.dispatchEvent(new Event("end"));
       assert(!called, "removeEventListener: end listener still called")
     },
+    overwriteOnProgressProperty: function() {
+      var req = new XMLHttpRequest();
+      var called = false;
+      req.onprogress = function(event) {
+        called = true;
+      };
+      req.onprogress = function(event) {
+        called = true;
+      };
+      req.onprogress = null;
+      req.xmlHTTPRequestLengthComputable.xmlhttprequest.dispatchEvent(new Event("load"));
+      assert(!called, "onprogress = null: progress listener still called")
+    },
+    deleteOnProgressProperty: function() {
+      var req = new XMLHttpRequest();
+      var called = false;
+      req.onprogress = function(event) {
+        called = true;
+      };
+      delete req.onprogress;
+      req.xmlHTTPRequestLengthComputable.xmlhttprequest.dispatchEvent(new Event("load"));
+      assert(!called, "delete onprogress: progress listener still called")
+    },
     methodOpen: function() {
       if (document.location.href.indexOf("http://") == -1 &&
           document.location.href.indexOf("https://") == -1) {
@@ -175,6 +198,16 @@
       }
       var req = new XMLHttpRequest();
       var failed = false;
+      req.onprogress = function(data) {
+        try {
+          assert(data.lengthComputable == true, "");
+          assert(data.loaded == 10, "");
+          assert(data.total == 10, "");
+          assert(data.type == "progress", "");
+        } catch (e) {
+          failed = "open failed: progress wrong!"
+        }
+      }
       req.onload = function(data) {
         try {
           assert(req.responseText == "super-test", "")
@@ -192,7 +225,7 @@
     noGetResponseHeaders: function() {
       var req = new XMLHttpRequest();
       req.onprogress = function(event) {
-        assert(event.total == 15, "total != 15: " + event.total)
+        assert(event.total == 14, "total != 14: " + event.total)
       }
       req.onprogress(createProgressEvent(
           false, 0, 15, null))
