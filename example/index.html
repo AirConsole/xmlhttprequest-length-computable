@@ -6,6 +6,7 @@
       var progress = document.getElementById("progress");
 
       var req = new XMLHttpRequest();
+
       req.onprogress = function(event) {
         progress.style.width = (event.loaded / event.total * 100) + "%";
       }
@@ -15,6 +16,7 @@
       })
 
       req.onload = function() {
+        console.log("Loaded")
         progress.innerHTML = "Loaded";
       }
 

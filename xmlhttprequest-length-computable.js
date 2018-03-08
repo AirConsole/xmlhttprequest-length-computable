@@ -9,61 +9,82 @@
 
   var DEFAULTS = {
     CONTENT_ENCODING_MULTIPLE: 1.5,
-    DEFAULT_CONTENT_LENGTH: 1024 * 100,
+    DEFAULT_CONTENT_LENGTH: 1024 * 1024,
     DECOMPRESSED_CONTENT_LENGTH_HEADER: "x-decompressed-content-length"
   }
 
   if (window.Proxy) {
     var OriginalXMLHTTPRequest = XMLHttpRequest;
 
+    var calculate_pseudo_total = function(defaults, original_event) {
+      var pseudo_total = 0;
+      if (!pseudo_total) {
+        if (defaults["decompressed-content-length"]) {
+          pseudo_total = defaults["decompressed-content-length"];
+        }
+      }
+      try {
+        if (!pseudo_total) {
+          var real_length = original_event.target.getResponseHeader(
+              defaults.DECOMPRESSED_CONTENT_LENGTH_HEADER);
+          if (real_length != undefined) {
+            pseudo_total = parseInt(real_length)
+          }
+        }
+        if (!pseudo_total) {
+          var content_length =
+              original_event.target.getResponseHeader(
+                  'content-length');
+          if (content_length) {
+            content_length = parseInt(content_length)
+            var content_encoding =
+                original_event.target.getResponseHeader(
+                    'content-encoding');
+            if (content_encoding &&
+                content_encoding != "identity") {
+              pseudo_total = (content_length *
+                  defaults.CONTENT_ENCODING_MULTIPLE)|0;
+            } else {
+              pseudo_total = content_length;
+            }
+          }
+        }
+      } catch (e) {}
+      if (!pseudo_total) {
+        pseudo_total = defaults.DEFAULT_CONTENT_LENGTH;
+      }
+      return pseudo_total;
+    };
+
+
     var onprogress = function(defaults, callback) {
       var pseudo_total = 0;
       return function(event) {
-        if (event.type == "progress") {
+        if (event &&
+            (event instanceof ProgressEvent || defaults.no_type_check) &&
+            (event.type == "progress" ||
+             event.type == "load" ||
+             event.type == "loadend")) {
           if (event.lengthComputable == false) {
             var original_event = event;
             event = new Proxy(event, {
               get: function (target, name) {
                 if (name == "lengthComputable") {
                   return true;
-                } else if (name == "total") {
-                  try {
-                    if (original_event.lengthComputable) {
-                      return original_event.total - 1;
-                    }
-                    if (defaults["decompressed-content-length"]) {
-                      return Math.max(defaults["decompressed-content-length"],
-                                      original_event.loaded) - 1;
-                    }
-                    var real_length = original_event.target.getResponseHeader(
-                        defaults.DECOMPRESSED_CONTENT_LENGTH_HEADER);
-                    if (real_length != undefined) {
-                      return Math.max(real_length, original_event.loaded) - 1;
-                    }
-                    if (!pseudo_total) {
-                      var content_length =
-                          original_event.target.getResponseHeader(
-                          'content-length');
-                      if (content_length) {
-                        var content_encoding =
-                            original_event.target.getResponseHeader(
-                                'content-encoding');
-                        if (content_encoding &&
-                            content_encoding != "identity") {
-                          pseudo_total = content_length *
-                              defaults.CONTENT_ENCODING_MULTIPLE;
-                        } else {
-                          pseudo_total = content_length;
-                        }
-                      } else {
-                        pseudo_total = defaults.DEFAULT_CONTENT_LENGTH;
-                      }
-                    }
-                  } catch (e) {
-                    return original_event.total - 1;
+                } else if (name == "loaded") {
+                  if (!pseudo_total) {
+                    pseudo_total = calculate_pseudo_total(defaults,
+                                                        original_event)
                   }
-                  while (original_event.loaded >= pseudo_total) {
-                    pseudo_total *= 2;
+                  if (defaults["loadFinished"]) {
+                    return pseudo_total;
+                  } else {
+                    return Math.min(original_event.loaded, pseudo_total-1);
+                  }
+                } else if (name == "total") {
+                  if (!pseudo_total) {
+                    pseudo_total = calculate_pseudo_total(defaults,
+                                                          original_event)
                   }
                   return pseudo_total;
                 } else {
@@ -76,16 +97,32 @@
             defaults["lengthComputable"] = true;
           }
         }
-        callback(event);
+        defaults["latestProgress"] = event;
+        if (callback) {
+          callback(event);
+        }
       };
     };
 
     var proxy = {
       set: function(target, name, value) {
-        if (name == "onprogress") {
-          target[name] = onprogress(target.xmlHTTPRequestLengthComputable,
-                                    value);
-          target.xmlHTTPRequestLengthComputable["onprogress"] = value;
+        if (target.xmlHTTPRequestLengthComputable &&
+            name.indexOf("on") == 0 &&
+            target.xmlHTTPRequestLengthComputable["listeners"][
+                name.substr(2)]) {
+          if (target.xmlHTTPRequestLengthComputable[
+                  "listeners"][name.substr(2)]["on"]) {
+            delete target.xmlHTTPRequestLengthComputable[
+                "listeners"][name.substr(2)]["on"];
+          }
+          if (value) {
+            target[name] = onprogress(target.xmlHTTPRequestLengthComputable,
+                                      value);
+            target.xmlHTTPRequestLengthComputable[
+                "listeners"][name.substr(2)]["on"] = value;
+          } else {
+            target[name] = value;
+          }
         } else {
           target[name] = value;
         }
@@ -94,11 +131,12 @@
       get: function(target, name) {
         if (name == "addEventListener") {
           return function() {
-            if (arguments[0] == "progress") {
+            if (target.xmlHTTPRequestLengthComputable[
+                    "listeners"][arguments[0]]) {
               var event_listener = onprogress(
                   target.xmlHTTPRequestLengthComputable, arguments[1]);
-              target.xmlHTTPRequestLengthComputable.progress_listeners.push(
-                  [event_listener, arguments[1]]);
+              target.xmlHTTPRequestLengthComputable.listeners[arguments[0]][
+                  "listeners"].push([event_listener, arguments[1]]);
               return target[name].call(
                   target, arguments[0],
                   event_listener,
@@ -110,9 +148,9 @@
           }
         } else if (name == "removeEventListener") {
           return function() {
-            if (arguments[0] == "progress") {
-              var listeners =
-                  target.xmlHTTPRequestLengthComputable.progress_listeners;
+            if (target.xmlHTTPRequestLengthComputable.listeners[arguments[0]]) {
+              var listeners = target.xmlHTTPRequestLengthComputable.listeners[
+                  arguments[0]]["listeners"];
               for (var i = 0; i < listeners.length; ++i) {
                 if (listeners[i][1] == arguments[1]) {
                   var listener = listeners.splice(i)[0];
@@ -134,12 +172,6 @@
         } else {
           return target[name];
         }
-      },
-      deleteProperty: function(target, name) {
-        if (name == "onprogress") {
-          delete target.xmlHTTPRequestLengthComputable["onprogress"];
-        }
-        delete target[name];
       }
     };
 
@@ -147,7 +179,7 @@
       var xmlhttprequest = new OriginalXMLHTTPRequest(arg);
       var result = new Proxy(xmlhttprequest, proxy);
       var defaults;
-      var config = DEFAULTS;
+      var config = window.xmlHTTPRequestLengthComputable || DEFAULTS;
       if (arg && arg["xmlHTTPRequestLengthComputable"]) {
         config = arg["xmlHTTPRequestLengthComputable"]
       }
@@ -159,31 +191,27 @@
         defaults["decompressed-content-length"] =
             config["decompressed-content-length"];
       }
-      defaults["progress_listeners"] = [];
-      xmlhttprequest.addEventListener("load", function(event) {
+      defaults["listeners"] = {
+        "progress": {  listeners: [] },
+        "load": { listeners: [] },
+        "loadend": { listeners: [] }
+      };
+      xmlhttprequest.addEventListener("load", function(load_event) {
         if (defaults["lengthComputable"]) {
           return;
         }
-        var original_event = event;
-        event =  new Proxy(event, {
-          get: function (target, name) {
-            if (name == "lengthComputable") {
-              return true;
-            } else if (name == "total" || name == "loaded") {
-              return original_event.loaded || 1;
-            } else if (name == "type") {
-              return "progress";
-            } else {
-              return target[name];
-            }
+        defaults["loadFinished"] = true;
+        if (defaults["latestProgress"]) {
+          if (defaults["listeners"]["progress"]["on"]) {
+            defaults["listeners"]["progress"]["on"](
+                defaults["latestProgress"]);
           }
-        });
-        if (defaults["onprogress"]) {
-          defaults["onprogress"](event);
-        }
-        for (var i = 0; i < defaults["progress_listeners"].length; ++i) {
-          if (defaults["progress_listeners"][i][1]) {
-            defaults["progress_listeners"][i][1](event);
+          var progress_listeners =
+              defaults["listeners"]["progress"]["listeners"];
+          for (var i = 0; i < progress_listeners.length; ++i) {
+            if (progress_listeners[i][1]) {
+              progress_listeners[i][1](defaults["latestProgress"]);
+            }
           }
         }
       });
