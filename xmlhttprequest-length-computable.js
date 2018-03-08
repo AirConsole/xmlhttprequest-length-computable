@@ -219,5 +219,8 @@
       result.xmlHTTPRequestLengthComputable = defaults;
       return result;
     }
+    for (var constant in OriginalXMLHTTPRequest) {
+      window.XMLHttpRequest[constant] = OriginalXMLHTTPRequest[constant];
+    }
   }
 })();

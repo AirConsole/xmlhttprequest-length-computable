@@ -338,6 +338,11 @@
       req.onprogress(createProgressEvent(
           false, 0, 0, {"content-length": 12, "content-encoding": "gzip"}));
       delete window.xmlHTTPRequestLengthComputable;
+    },
+    constants: function() {
+      assert((XMLHttpRequest.LOADING ||
+              XMLHttpRequest.READYSTATE_LOADING) == 3,
+          "XMLHttpRequest.LOADING != 3");
     }
   }
 
